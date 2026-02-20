@@ -1,0 +1,106 @@
+/* Material Design Custom Select */
+.custom-select-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  min-width: 140px;
+}
+
+.custom-select-wrapper.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.custom-select-trigger {
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 12px;
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.custom-select-trigger:hover:not(:disabled) {
+  border-color: var(--text-secondary);
+}
+
+.custom-select-trigger.open {
+  border-color: var(--accent-color);
+  border-width: 2px;
+  padding: 0 11px;
+}
+
+.custom-select-trigger:disabled {
+  cursor: not-allowed;
+}
+
+.custom-select-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-select-arrow {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  fill: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.custom-select-trigger.open .custom-select-arrow {
+  transform: rotate(180deg);
+}
+
+.custom-select-dropdown {
+  background: var(--dropdown-bg);
+  border-radius: 4px;
+  box-shadow: 0 2px 4px -1px rgba(0,0,0,0.2), 0 4px 5px 0 rgba(0,0,0,0.14), 0 1px 10px 0 rgba(0,0,0,0.12);
+  max-height: 256px;
+  overflow-y: auto;
+  animation: dropdownIn 0.12s ease;
+  padding: 8px 0;
+  min-width: 200px;
+}
+
+@keyframes dropdownIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95, 0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1, 1);
+  }
+}
+
+.custom-select-option {
+  padding: 0 16px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.custom-select-option:hover {
+  background: var(--hover-bg);
+}
+
+.custom-select-option.selected {
+  color: var(--accent-color);
+  background: var(--accent-light);
+}

@@ -1,0 +1,66 @@
+{
+  "app": {
+    "name": "Core Link",
+    "description": "专业音频路由软件"
+  },
+  "common": {
+    "ok": "确定",
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "create": "创建",
+    "close": "关闭",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "还原",
+    "settings": "设置",
+    "about": "关于",
+    "exit": "退出",
+    "show": "显示",
+    "hide": "隐藏"
+  },
+  "titlebar": {
+    "menu": "菜单"
+  },
+  "settings": {
+    "title": "设置",
+    "general": "常规",
+    "appearance": "外观",
+    "language": "语言",
+    "theme": {
+      "title": "主题",
+      "light": "浅色",
+      "dark": "深色",
+      "system": "跟随系统"
+    },
+    "autoStart": "开机自启动",
+    "minimizeToTray": "最小化到系统托盘",
+    "autoLoadLastProject": {
+      "title": "自动加载上次工程",
+      "desc": "启动时自动打开上次编辑的工程"
+    },
+    "selectLanguage": "选择语言"
+  },
+  "tray": {
+    "showWindow": "显示窗口",
+    "hideWindow": "隐藏窗口",
+    "quit": "退出"
+  },
+  "device": {
+    "title": "设备",
+    "input": "输入设备",
+    "output": "输出设备",
+    "processor": "处理器",
+    "add": "添加设备",
+    "name": "设备名称",
+    "channels": "通道数"
+  },
+  "routing": {
+    "title": "路由",
+    "canvas": "路由画布",
+    "connect": "连接",
+    "disconnect": "断开连接",
+    "autoRoute": "自动布线"
+  }
+}

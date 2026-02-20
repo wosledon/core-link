@@ -1,0 +1,139 @@
+.titlebar {
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  background: var(--titlebar-bg);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border-color-light);
+  user-select: none;
+  position: relative;
+}
+
+.titlebar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.titlebar-icon {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.titlebar-icon svg {
+  width: 16px;
+  height: 16px;
+  fill: var(--accent-color);
+}
+
+.titlebar-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: 0;
+}
+
+.titlebar-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 280px);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.titlebar-project-name {
+  display: flex;
+  align-items: center;
+}
+
+.project-name-view {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 8px;
+  cursor: text;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.project-name-view:hover {
+  background: var(--hover-bg);
+  border-color: var(--border-color-light);
+}
+
+.project-name-editor {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--accent-color);
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 2px 8px;
+  gap: 2px;
+}
+
+.project-name-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 120px;
+  max-width: 260px;
+}
+
+.project-name-ext {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.titlebar-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.titlebar-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 999px;
+  transition: all 0.15s ease;
+}
+
+.titlebar-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.titlebar-btn.close:hover {
+  background: var(--error-color);
+  color: #fff;
+}
+
+.titlebar-btn svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}

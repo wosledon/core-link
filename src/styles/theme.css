@@ -1,0 +1,138 @@
+/* Core Link - Material Design + Rounded Card Theme */
+
+:root {
+  --bg-primary: #f4f6fb;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #edf1f8;
+
+  --panel-bg: #ffffff;
+  --titlebar-bg: rgba(255, 255, 255, 0.92);
+  --dropdown-bg: #ffffff;
+  --input-bg: #f2f5fb;
+
+  --text-primary: #1d1b20;
+  --text-secondary: #49454f;
+  --text-tertiary: #79747e;
+
+  --border-color: #c7c5d0;
+  --border-color-light: #e3e2ec;
+
+  --hover-bg: rgba(103, 80, 164, 0.08);
+  --active-bg: rgba(103, 80, 164, 0.14);
+
+  --accent-color: #6750a4;
+  --accent-hover: #5a4495;
+  --accent-light: rgba(103, 80, 164, 0.14);
+
+  --success-color: #2e7d32;
+  --warning-color: #ed6c02;
+  --error-color: #b3261e;
+
+  --device-input-color: #2e7d32;
+  --device-output-color: #c62828;
+  --device-processor-color: #6750a4;
+
+  --toggle-bg: #d9dbe7;
+
+  --shadow-sm: 0 1px 3px rgba(23, 20, 28, 0.08), 0 1px 2px rgba(23, 20, 28, 0.12);
+  --shadow-md: 0 4px 10px rgba(23, 20, 28, 0.12), 0 2px 6px rgba(23, 20, 28, 0.1);
+  --shadow-lg: 0 12px 28px rgba(23, 20, 28, 0.2), 0 6px 12px rgba(23, 20, 28, 0.12);
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+
+  --font-sans: 'Roboto', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.dark {
+  --bg-primary: #121318;
+  --bg-secondary: #1d1f25;
+  --bg-tertiary: #272a33;
+
+  --panel-bg: #1d1f25;
+  --titlebar-bg: rgba(29, 31, 37, 0.92);
+  --dropdown-bg: #272a33;
+  --input-bg: #2c3039;
+
+  --text-primary: #e6e0e9;
+  --text-secondary: #cac4d0;
+  --text-tertiary: #938f99;
+
+  --border-color: #4a4458;
+  --border-color-light: #363943;
+
+  --hover-bg: rgba(208, 188, 255, 0.12);
+  --active-bg: rgba(208, 188, 255, 0.2);
+
+  --accent-color: #d0bcff;
+  --accent-hover: #c4adff;
+  --accent-light: rgba(208, 188, 255, 0.18);
+
+  --success-color: #7ddf83;
+  --warning-color: #ffb86b;
+  --error-color: #ffb4ab;
+
+  --device-input-color: #7ddf83;
+  --device-output-color: #ff8a80;
+  --device-processor-color: #d0bcff;
+
+  --toggle-bg: #545863;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.32);
+  --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.5);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+::selection {
+  background: var(--accent-light);
+}
+
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+}
+
+[data-tauri-drag-region] button,
+[data-tauri-drag-region] input,
+[data-tauri-drag-region] select {
+  -webkit-app-region: no-drag;
+}

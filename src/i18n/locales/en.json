@@ -1,0 +1,66 @@
+{
+  "app": {
+    "name": "Core Link",
+    "description": "Professional Audio Routing Software"
+  },
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "close": "Close",
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore",
+    "settings": "Settings",
+    "about": "About",
+    "exit": "Exit",
+    "show": "Show",
+    "hide": "Hide"
+  },
+  "titlebar": {
+    "menu": "Menu"
+  },
+  "settings": {
+    "title": "Settings",
+    "general": "General",
+    "appearance": "Appearance",
+    "language": "Language",
+    "theme": {
+      "title": "Theme",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "autoStart": "Start on boot",
+    "minimizeToTray": "Minimize to tray",
+    "autoLoadLastProject": {
+      "title": "Auto-load last project",
+      "desc": "Open the most recently edited project on startup"
+    },
+    "selectLanguage": "Select Language"
+  },
+  "tray": {
+    "showWindow": "Show Window",
+    "hideWindow": "Hide Window",
+    "quit": "Quit"
+  },
+  "device": {
+    "title": "Devices",
+    "input": "Input Device",
+    "output": "Output Device",
+    "processor": "Processor",
+    "add": "Add Device",
+    "name": "Device Name",
+    "channels": "Channels"
+  },
+  "routing": {
+    "title": "Routing",
+    "canvas": "Routing Canvas",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "autoRoute": "Auto Route"
+  }
+}
