@@ -93,6 +93,7 @@ export function useAudioRouter() {
   const inputSourceNodesRef = useRef<Map<string, MediaStreamAudioSourceNode>>(new Map());
   const inputSourceBindingRef = useRef<Map<string, string>>(new Map());
   const inputStreamCacheRef = useRef<Map<string, MediaStream>>(new Map());
+  const inputStreamUsageRef = useRef<Map<string, Set<string>>>(new Map());
   const outputDestinationNodesRef = useRef<Map<string, MediaStreamAudioDestinationNode>>(new Map());
   const outputMonitorElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const outputSinkBindingRef = useRef<Map<string, string>>(new Map());
@@ -174,9 +175,14 @@ export function useAudioRouter() {
     return Math.max(0, Math.min(1, rms * 2.4));
   }, []);
 
-  const getOrCreateInputStream = useCallback(async (boundDeviceId?: string) => {
+  const getOrCreateInputStream = useCallback(async (deviceId: string, boundDeviceId?: string) => {
     const useDefaultBrowserInput = !boundDeviceId || boundDeviceId === 'default-input' || isBackendInputId(boundDeviceId);
     const cacheKey = useDefaultBrowserInput ? 'default-input' : boundDeviceId;
+
+    // 记录当前设备使用这个缓存键
+    const usageSet = inputStreamUsageRef.current.get(cacheKey) || new Set();
+    usageSet.add(deviceId);
+    inputStreamUsageRef.current.set(cacheKey, usageSet);
 
     const cached = inputStreamCacheRef.current.get(cacheKey);
     if (cached) {
@@ -196,6 +202,25 @@ export function useAudioRouter() {
 
     inputStreamCacheRef.current.set(cacheKey, stream);
     return stream;
+  }, []);
+
+  const releaseInputStream = useCallback((deviceId: string, boundDeviceId?: string) => {
+    const useDefaultBrowserInput = !boundDeviceId || boundDeviceId === 'default-input' || isBackendInputId(boundDeviceId);
+    const cacheKey = useDefaultBrowserInput ? 'default-input' : boundDeviceId;
+
+    const usageSet = inputStreamUsageRef.current.get(cacheKey);
+    if (usageSet) {
+      usageSet.delete(deviceId);
+      // 如果没有设备再使用这个流，停止并删除它
+      if (usageSet.size === 0) {
+        const stream = inputStreamCacheRef.current.get(cacheKey);
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+          inputStreamCacheRef.current.delete(cacheKey);
+        }
+        inputStreamUsageRef.current.delete(cacheKey);
+      }
+    }
   }, []);
 
   const ensureOutputMonitorElement = useCallback((
@@ -241,6 +266,12 @@ export function useAudioRouter() {
           monitorElement.srcObject = null;
         }
 
+        // 释放输入流（如果没有其他设备在使用）
+        const prevBindingKey = inputSourceBindingRef.current.get(id);
+        if (prevBindingKey) {
+          releaseInputStream(id, prevBindingKey === 'default-input' ? undefined : prevBindingKey);
+        }
+
         deviceGainNodesRef.current.delete(id);
         deviceAnalyserNodesRef.current.delete(id);
         inputSourceNodesRef.current.delete(id);
@@ -274,13 +305,16 @@ export function useAudioRouter() {
       const bindingKey = device.boundDeviceId || 'default-input';
       const prevBindingKey = inputSourceBindingRef.current.get(device.id);
       if (prevBindingKey !== bindingKey) {
+        // 断开旧节点的连接
         inputSourceNodesRef.current.get(device.id)?.disconnect();
         inputSourceNodesRef.current.delete(device.id);
+        // 释放旧的输入流（如果没有其他设备在使用）
+        releaseInputStream(device.id, prevBindingKey === 'default-input' ? undefined : prevBindingKey);
       }
 
       let sourceNode = inputSourceNodesRef.current.get(device.id);
       if (!sourceNode) {
-        const stream = await getOrCreateInputStream(device.boundDeviceId);
+        const stream = await getOrCreateInputStream(device.id, device.boundDeviceId);
         sourceNode = context.createMediaStreamSource(stream);
         inputSourceNodesRef.current.set(device.id, sourceNode);
       }
@@ -363,7 +397,7 @@ export function useAudioRouter() {
         analyser.connect(masterGain);
       }
     }
-  }, [ensureAudioContext, ensureDeviceNodes, ensureOutputMonitorElement, getOrCreateInputStream]);
+  }, [ensureAudioContext, ensureDeviceNodes, ensureOutputMonitorElement, getOrCreateInputStream, releaseInputStream]);
 
   const deviceGraphSignature = useMemo(() => JSON.stringify(
     devices.map(device => ({

@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { isCoreLinkVirtualId } from '../types/audio';
 import type { AudioDevice, DeviceType } from '../types/audio';
 import { CustomSelect } from './CustomSelect';
@@ -72,6 +72,17 @@ export function DeviceCard({
   const peakLevelsRef = useRef<number[]>([]);
   const peakHoldUntilRef = useRef<number[]>([]);
   const peakLastUpdateRef = useRef<number[]>([]);
+  const deviceIdRef = useRef<string>(device.id);
+
+  // 当设备切换时重置峰值电平状态，防止"串设备"
+  useEffect(() => {
+    if (deviceIdRef.current !== device.id) {
+      deviceIdRef.current = device.id;
+      peakLevelsRef.current = Array.from({ length: device.channels }, (_, index) => Math.max(0, Math.min(1, device.levels[index] || 0)));
+      peakHoldUntilRef.current = Array(device.channels).fill(0);
+      peakLastUpdateRef.current = Array(device.channels).fill(performance.now());
+    }
+  }, [device.id, device.channels, device.levels]);
 
   if (peakLevelsRef.current.length !== device.channels) {
     peakLevelsRef.current = Array.from({ length: device.channels }, (_, index) => Math.max(0, Math.min(1, device.levels[index] || 0)));
