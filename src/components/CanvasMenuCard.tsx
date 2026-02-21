@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Tooltip } from './Tooltip';
 import './CanvasMenuCard.css';
 
 interface ProjectListItem {
@@ -52,16 +53,14 @@ const RedoIcon = () => (
   </svg>
 );
 
+// 自动布线图标 - 使用分支/连接路径图标
 const AutoRouteIcon = () => (
-  <svg viewBox="0 0 24 24">
-    <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
-  </svg>
+  <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M296-270q-42 35-87.5 32T129-269q-34-28-46.5-73.5T99-436l75-124q-25-22-39.5-53T120-680q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47q-9 0-18-1t-17-3l-77 130q-11 18-7 35.5t17 28.5q13 11 31 12.5t35-12.5l420-361q42-35 88-31.5t80 31.5q34 28 46 73.5T861-524l-75 124q25 22 39.5 53t14.5 67q0 66-47 113t-113 47q-66 0-113-47t-47-113q0-66 47-113t113-47q9 0 17.5 1t16.5 3l78-130q11-18 7-35.5T782-630q-13-11-31-12.5T716-630L296-270Z"/></svg>
 );
 
+// 自动排版图标 - 使用对齐/整理图标
 const AutoLayoutIcon = () => (
-  <svg viewBox="0 0 24 24">
-    <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
-  </svg>
+  <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M440-120H200q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h240v720Zm80-400v-320h240q33 0 56.5 23.5T840-760v240H520Zm0 400v-320h320v240q0 33-23.5 56.5T760-120H520Z"/></svg>
 );
 
 export function CanvasMenuCard({
@@ -82,39 +81,51 @@ export function CanvasMenuCard({
   return (
     <div className="canvas-menu-wrap">
       <div className="canvas-menu-card">
-      <button className="menu-card-btn" onClick={onNewProject} title="新建工程">
-        <NewIcon />
-      </button>
-      <button className={`menu-card-btn ${showProjects ? 'active' : ''}`} onClick={() => setShowProjects(prev => !prev)} title="工程列表">
-        <ProjectIcon />
-      </button>
-      <button className="menu-card-btn" onClick={onSaveProject} title="保存工程">
-        <SaveIcon />
-      </button>
-      <div className="menu-card-divider" />
-      <button 
-        className={`menu-card-btn ${!canUndo ? 'disabled' : ''}`} 
-        onClick={onUndo} 
-        title="撤销"
-        disabled={!canUndo}
-      >
-        <UndoIcon />
-      </button>
-      <button 
-        className={`menu-card-btn ${!canRedo ? 'disabled' : ''}`} 
-        onClick={onRedo} 
-        title="重做"
-        disabled={!canRedo}
-      >
-        <RedoIcon />
-      </button>
-      <div className="menu-card-divider" />
-      <button className="menu-card-btn" onClick={onAutoRoute} title="自动布线">
-        <AutoRouteIcon />
-      </button>
-      <button className="menu-card-btn" onClick={onAutoLayout} title="自动排版">
-        <AutoLayoutIcon />
-      </button>
+        <Tooltip content="新建工程" placement="bottom">
+          <button className="menu-card-btn" onClick={onNewProject}>
+            <NewIcon />
+          </button>
+        </Tooltip>
+        <Tooltip content="工程列表" placement="bottom">
+          <button className={`menu-card-btn ${showProjects ? 'active' : ''}`} onClick={() => setShowProjects(prev => !prev)}>
+            <ProjectIcon />
+          </button>
+        </Tooltip>
+        <Tooltip content="保存工程" placement="bottom">
+          <button className="menu-card-btn" onClick={onSaveProject}>
+            <SaveIcon />
+          </button>
+        </Tooltip>
+        <div className="menu-card-divider" />
+        <Tooltip content="撤销" placement="bottom">
+          <button 
+            className={`menu-card-btn ${!canUndo ? 'disabled' : ''}`} 
+            onClick={onUndo} 
+            disabled={!canUndo}
+          >
+            <UndoIcon />
+          </button>
+        </Tooltip>
+        <Tooltip content="重做" placement="bottom">
+          <button 
+            className={`menu-card-btn ${!canRedo ? 'disabled' : ''}`} 
+            onClick={onRedo} 
+            disabled={!canRedo}
+          >
+            <RedoIcon />
+          </button>
+        </Tooltip>
+        <div className="menu-card-divider" />
+        <Tooltip content="自动布线" placement="bottom">
+          <button className="menu-card-btn" onClick={onAutoRoute}>
+            <AutoRouteIcon />
+          </button>
+        </Tooltip>
+        <Tooltip content="自动排版" placement="bottom">
+          <button className="menu-card-btn" onClick={onAutoLayout}>
+            <AutoLayoutIcon />
+          </button>
+        </Tooltip>
       </div>
 
       {showProjects && (

@@ -1,0 +1,89 @@
+/* 自定义 Tooltip 样式 */
+.tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip-content {
+  position: fixed;
+  z-index: 99999;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color-light);
+  border-radius: 6px;
+  box-shadow: var(--shadow-md);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.tooltip-content.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 箭头 */
+.tooltip-content::before {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-style: solid;
+}
+
+/* 上方显示 */
+.tooltip-content[data-placement="top"] {
+  margin-bottom: 6px;
+}
+
+.tooltip-content[data-placement="top"]::before {
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 5px 5px 0 5px;
+  border-color: var(--panel-bg) transparent transparent transparent;
+}
+
+/* 下方显示 */
+.tooltip-content[data-placement="bottom"] {
+  margin-top: 6px;
+}
+
+.tooltip-content[data-placement="bottom"]::before {
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 0 5px 5px 5px;
+  border-color: transparent transparent var(--panel-bg) transparent;
+}
+
+/* 左侧显示 */
+.tooltip-content[data-placement="left"] {
+  margin-right: 6px;
+}
+
+.tooltip-content[data-placement="left"]::before {
+  right: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-width: 5px 0 5px 5px;
+  border-color: transparent transparent transparent var(--panel-bg);
+}
+
+/* 右侧显示 */
+.tooltip-content[data-placement="right"] {
+  margin-left: 6px;
+}
+
+.tooltip-content[data-placement="right"]::before {
+  left: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-width: 5px 5px 5px 0;
+  border-color: transparent var(--panel-bg) transparent transparent;
+}

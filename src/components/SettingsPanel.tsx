@@ -110,6 +110,7 @@ export function SettingsPanel({
                       value={language}
                       options={languageOptions}
                       onChange={(value) => onLanguageChange(value as Language)}
+                      minDropdownWidth={120}
                     />
                   </div>
 

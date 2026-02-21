@@ -70,43 +70,57 @@
   height: 100%;
   pointer-events: auto;
   z-index: 1;
+  overflow: visible;
 }
 
 .connection-line {
   fill: none;
-  stroke: var(--accent-color);
-  stroke-width: 2.5;
+  stroke: var(--success-color);
+  stroke-width: 3;
   opacity: 0.8;
-  transition: stroke 0.2s ease;
+  stroke-dasharray: 5, 5;
   pointer-events: stroke;
   cursor: pointer;
 }
 
-.connection-line:hover {
-  stroke: var(--accent-hover);
-  stroke-width: 3;
-}
-
+/* 流动方向动画效果 - 有音频流动时动态 */
 .connection-line.active {
-  stroke: var(--success-color);
+  stroke-dasharray: 8, 4;
+  animation: flowAnimation 0.6s linear infinite;
+  opacity: 1;
 }
 
-.connection-line.hovered {
-  stroke-width: 3.6;
-  filter: drop-shadow(0 0 4px rgba(46, 125, 50, 0.35));
+@keyframes flowAnimation {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
+/* 选中状态的连接线 */
 .connection-line.selected {
-  stroke: var(--accent-hover);
+  stroke: var(--success-color);
+  stroke-width: 5;
+  filter: drop-shadow(0 0 6px rgba(46, 125, 50, 0.5));
+  animation: none;
+}
+
+/* 悬停状态的连接线 */
+.connection-line.hovered,
+.connection-line:hover {
+  stroke: var(--success-color);
   stroke-width: 4;
+  filter: drop-shadow(0 0 4px rgba(46, 125, 50, 0.5));
 }
 
 .temp-connection {
   fill: none;
-  stroke: var(--accent-color);
-  stroke-width: 2;
+  stroke: var(--success-color);
+  stroke-width: 2.5;
   stroke-dasharray: 5, 5;
-  opacity: 0.6;
+  opacity: 0.7;
   pointer-events: none;
 }
 

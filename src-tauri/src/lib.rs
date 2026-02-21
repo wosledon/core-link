@@ -5,7 +5,9 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{mpsc, Arc, Mutex, OnceLock};
+use std::sync::{Arc, OnceLock};
+use tokio::sync::{mpsc, Mutex};
+use std::sync::mpsc as std_mpsc;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -314,7 +316,7 @@ fn enumerate_audio_outputs() -> Result<(Vec<cpal::Device>, Option<String>), Stri
 fn push_mono_samples_f32(
     data: &[f32],
     input_channels: usize,
-    bridge: &Arc<Mutex<StreamBridgeState>>,
+    bridge: &Arc<std::sync::Mutex<StreamBridgeState>>,
     meter: &Arc<AtomicU32>,
 ) {
     if input_channels == 0 {
@@ -346,7 +348,7 @@ fn push_mono_samples_f32(
 fn push_mono_samples_i16(
     data: &[i16],
     input_channels: usize,
-    bridge: &Arc<Mutex<StreamBridgeState>>,
+    bridge: &Arc<std::sync::Mutex<StreamBridgeState>>,
     meter: &Arc<AtomicU32>,
 ) {
     if input_channels == 0 {
@@ -381,7 +383,7 @@ fn push_mono_samples_i16(
 fn push_mono_samples_u16(
     data: &[u16],
     input_channels: usize,
-    bridge: &Arc<Mutex<StreamBridgeState>>,
+    bridge: &Arc<std::sync::Mutex<StreamBridgeState>>,
     meter: &Arc<AtomicU32>,
 ) {
     if input_channels == 0 {
@@ -444,7 +446,7 @@ fn next_resampled_sample(state: &mut StreamBridgeState) -> f32 {
 fn fill_output_f32(
     data: &mut [f32],
     output_channels: usize,
-    bridge: &Arc<Mutex<StreamBridgeState>>,
+    bridge: &Arc<std::sync::Mutex<StreamBridgeState>>,
     meter: &Arc<AtomicU32>,
 ) {
     if output_channels == 0 {
@@ -473,7 +475,7 @@ fn fill_output_f32(
 fn fill_output_i16(
     data: &mut [i16],
     output_channels: usize,
-    bridge: &Arc<Mutex<StreamBridgeState>>,
+    bridge: &Arc<std::sync::Mutex<StreamBridgeState>>,
     meter: &Arc<AtomicU32>,
 ) {
     if output_channels == 0 {
@@ -503,7 +505,7 @@ fn fill_output_i16(
 fn fill_output_u16(
     data: &mut [u16],
     output_channels: usize,
-    bridge: &Arc<Mutex<StreamBridgeState>>,
+    bridge: &Arc<std::sync::Mutex<StreamBridgeState>>,
     meter: &Arc<AtomicU32>,
 ) {
     if output_channels == 0 {
@@ -583,7 +585,7 @@ fn create_passthrough_session(
     let max_buffer_samples = (input_sample_rate * 1.2) as usize;
     let min_prefill_samples = (target_latency_samples * 0.35) as usize;
 
-    let bridge = Arc::new(Mutex::new(StreamBridgeState {
+    let bridge = Arc::new(std::sync::Mutex::new(StreamBridgeState {
         queue: VecDeque::new(),
         read_phase: 0.0,
         input_sample_rate,
@@ -707,18 +709,37 @@ fn create_passthrough_session(
     })
 }
 
+// 音频引擎命令（用于内部std线程通信）
+enum AudioEngineInternalCommand {
+    StartMany {
+        routes: Vec<AudioRoutePair>,
+        responder: std_mpsc::Sender<Result<(), String>>,
+    },
+    Stop {
+        responder: std_mpsc::Sender<Result<(), String>>,
+    },
+    GetLevels {
+        responder: std_mpsc::Sender<AudioLevelSnapshot>,
+    },
+}
+
 fn audio_engine_handle() -> &'static AudioEngineHandle {
     AUDIO_ENGINE.get_or_init(|| {
-        let (sender, receiver) = mpsc::channel::<AudioEngineCommand>();
+        // 使用tokio通道与异步世界通信
+        let (async_sender, mut async_receiver) = mpsc::channel::<AudioEngineCommand>(100);
+        // 使用std通道与音频线程通信
+        let (std_sender, std_receiver) = std_mpsc::channel::<AudioEngineInternalCommand>();
+        
         let status = Arc::new(Mutex::new(AudioRouteStatus::default()));
         let status_ref = Arc::clone(&status);
 
+        // 启动专用音频线程（cpal::Stream不是Send，必须在单线程中保持）
         std::thread::spawn(move || {
             let mut active_sessions: Vec<PassthroughSession> = vec![];
 
-            while let Ok(command) = receiver.recv() {
+            while let Ok(command) = std_receiver.recv() {
                 match command {
-                    AudioEngineCommand::StartMany { routes, responder } => {
+                    AudioEngineInternalCommand::StartMany { routes, responder } => {
                         active_sessions.clear();
 
                         let mut unique = HashSet::<AudioRoutePair>::new();
@@ -752,7 +773,7 @@ fn audio_engine_handle() -> &'static AudioEngineHandle {
                         }
 
                         {
-                            let mut state = status_ref.lock().unwrap();
+                            let mut state = status_ref.blocking_lock();
                             state.running = !active_sessions.is_empty();
                             state.route_count = active_sessions.len();
                             state.routes = started_routes.clone();
@@ -772,9 +793,9 @@ fn audio_engine_handle() -> &'static AudioEngineHandle {
                             let _ = responder.send(Ok(()));
                         }
                     }
-                    AudioEngineCommand::Stop { responder } => {
+                    AudioEngineInternalCommand::Stop { responder } => {
                         active_sessions.clear();
-                        let mut state = status_ref.lock().unwrap();
+                        let mut state = status_ref.blocking_lock();
                         state.running = false;
                         state.input_device_id = None;
                         state.output_device_id = None;
@@ -782,7 +803,7 @@ fn audio_engine_handle() -> &'static AudioEngineHandle {
                         state.routes = vec![];
                         let _ = responder.send(Ok(()));
                     }
-                    AudioEngineCommand::GetLevels { responder } => {
+                    AudioEngineInternalCommand::GetLevels { responder } => {
                         let mut input_levels = HashMap::<String, f32>::new();
                         let mut output_levels = HashMap::<String, f32>::new();
 
@@ -812,7 +833,40 @@ fn audio_engine_handle() -> &'static AudioEngineHandle {
             drop(active_sessions);
         });
 
-        AudioEngineHandle { sender, status }
+        // 启动tokio任务，将异步命令转发到std线程
+        let std_sender_clone = std_sender.clone();
+        tokio::spawn(async move {
+            while let Some(command) = async_receiver.recv().await {
+                match command {
+                    AudioEngineCommand::StartMany { routes, responder } => {
+                        let (tx, rx) = std_mpsc::channel();
+                        if std_sender_clone.send(AudioEngineInternalCommand::StartMany { routes, responder: tx }).is_ok() {
+                            if let Ok(result) = rx.recv() {
+                                let _ = responder.send(result).await;
+                            }
+                        }
+                    }
+                    AudioEngineCommand::Stop { responder } => {
+                        let (tx, rx) = std_mpsc::channel();
+                        if std_sender_clone.send(AudioEngineInternalCommand::Stop { responder: tx }).is_ok() {
+                            if let Ok(result) = rx.recv() {
+                                let _ = responder.send(result).await;
+                            }
+                        }
+                    }
+                    AudioEngineCommand::GetLevels { responder } => {
+                        let (tx, rx) = std_mpsc::channel();
+                        if std_sender_clone.send(AudioEngineInternalCommand::GetLevels { responder: tx }).is_ok() {
+                            if let Ok(result) = rx.recv() {
+                                let _ = responder.send(result).await;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        AudioEngineHandle { sender: async_sender, status }
     })
 }
 
@@ -822,13 +876,13 @@ fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
-fn get_settings(state: State<AppState>) -> AppSettings {
-    state.settings.lock().unwrap().clone()
+fn get_settings(state: State<'_, AppState>) -> AppSettings {
+    state.settings.blocking_lock().clone()
 }
 
 #[tauri::command]
-fn update_settings(settings: AppSettings, state: State<AppState>) -> Result<(), String> {
-    *state.settings.lock().unwrap() = settings;
+fn update_settings(settings: AppSettings, state: State<'_, AppState>) -> Result<(), String> {
+    *state.settings.blocking_lock() = settings;
     Ok(())
 }
 
@@ -855,30 +909,35 @@ fn is_auto_start_enabled(app: AppHandle) -> Result<bool, String> {
 
 #[tauri::command]
 fn close_window(window: WebviewWindow) {
-    window.close().unwrap();
+    let _ = window.close();
+}
+
+#[tauri::command]
+fn hide_window(window: WebviewWindow) {
+    let _ = window.hide();
 }
 
 #[tauri::command]
 fn minimize_window(window: WebviewWindow) {
-    window.minimize().unwrap();
+    let _ = window.minimize();
 }
 
 #[tauri::command]
 fn maximize_window(window: WebviewWindow) {
-    if window.is_maximized().unwrap() {
-        window.unmaximize().unwrap();
+    let _ = if window.is_maximized().unwrap_or(false) {
+        window.unmaximize()
     } else {
-        window.maximize().unwrap();
-    }
+        window.maximize()
+    };
 }
 
 #[tauri::command]
 fn start_drag(window: WebviewWindow) {
-    window.start_dragging().unwrap();
+    let _ = window.start_dragging();
 }
 
 #[tauri::command]
-fn list_audio_hardware() -> Result<AudioHardwareSnapshot, String> {
+async fn list_audio_hardware() -> Result<AudioHardwareSnapshot, String> {
     let (inputs, default_input_name) = enumerate_audio_inputs()?;
     let (outputs, default_output_name) = enumerate_audio_outputs()?;
 
@@ -929,7 +988,7 @@ fn list_audio_hardware() -> Result<AudioHardwareSnapshot, String> {
 
     input_list.extend(loopback_inputs);
 
-    let mut output_list = outputs
+    let output_list = outputs
         .iter()
         .enumerate()
         .map(|(index, device)| {
@@ -964,17 +1023,17 @@ fn list_audio_hardware() -> Result<AudioHardwareSnapshot, String> {
 // virtual endpoint commands removed
 
 #[tauri::command]
-fn check_virtual_audio_driver() -> VirtualDriverStatus {
+async fn check_virtual_audio_driver() -> VirtualDriverStatus {
     get_virtual_driver_status()
 }
 
 #[tauri::command]
-fn list_virtual_driver_inf_files() -> Vec<String> {
+async fn list_virtual_driver_inf_files() -> Vec<String> {
     list_virtual_driver_inf_files_internal()
 }
 
 #[tauri::command]
-fn install_virtual_audio_driver(inf_name: Option<String>) -> Result<String, String> {
+async fn install_virtual_audio_driver(inf_name: Option<String>) -> Result<String, String> {
     #[cfg(not(target_os = "windows"))]
     {
         return Err("Virtual audio driver installer currently supports Windows only".to_string());
@@ -1026,10 +1085,10 @@ fn install_virtual_audio_driver(inf_name: Option<String>) -> Result<String, Stri
 }
 
 #[tauri::command]
-fn start_audio_routes(routes: Vec<AudioRoutePair>) -> Result<(), String> {
+async fn start_audio_routes(routes: Vec<AudioRoutePair>) -> Result<(), String> {
     let resolved_routes = resolve_virtual_routes(routes)?;
     let handle = audio_engine_handle();
-    let (responder, receiver) = mpsc::channel::<Result<(), String>>();
+    let (responder, mut receiver) = mpsc::channel::<Result<(), String>>(1);
 
     handle
         .sender
@@ -1037,63 +1096,69 @@ fn start_audio_routes(routes: Vec<AudioRoutePair>) -> Result<(), String> {
             routes: resolved_routes,
             responder,
         })
+        .await
         .map_err(|e| format!("Failed to send start command: {}", e))?;
 
     receiver
         .recv()
-        .map_err(|e| format!("Failed to receive start result: {}", e))?
+        .await
+        .ok_or_else(|| "Failed to receive start result".to_string())?
 }
 
 #[tauri::command]
-fn start_audio_passthrough(
+async fn start_audio_passthrough(
     input_device_id: String,
     output_device_id: String,
 ) -> Result<(), String> {
     start_audio_routes(vec![AudioRoutePair {
         input_device_id,
         output_device_id,
-    }])
+    }]).await
 }
 
 #[tauri::command]
-fn stop_audio_routes() -> Result<(), String> {
+async fn stop_audio_routes() -> Result<(), String> {
     let handle = audio_engine_handle();
-    let (responder, receiver) = mpsc::channel::<Result<(), String>>();
+    let (responder, mut receiver) = mpsc::channel::<Result<(), String>>(1);
 
     handle
         .sender
         .send(AudioEngineCommand::Stop { responder })
+        .await
         .map_err(|e| format!("Failed to send stop command: {}", e))?;
 
     receiver
         .recv()
-        .map_err(|e| format!("Failed to receive stop result: {}", e))?
+        .await
+        .ok_or_else(|| "Failed to receive stop result".to_string())?
 }
 
 #[tauri::command]
-fn stop_audio_passthrough() -> Result<(), String> {
-    stop_audio_routes()
+async fn stop_audio_passthrough() -> Result<(), String> {
+    stop_audio_routes().await
 }
 
 #[tauri::command]
-fn get_audio_route_status() -> AudioRouteStatus {
+async fn get_audio_route_status() -> AudioRouteStatus {
     let handle = audio_engine_handle();
-    handle.status.lock().unwrap().clone()
+    handle.status.lock().await.clone()
 }
 
 #[tauri::command]
-fn get_audio_levels() -> Result<AudioLevelSnapshot, String> {
+async fn get_audio_levels() -> Result<AudioLevelSnapshot, String> {
     let handle = audio_engine_handle();
-    let (responder, receiver) = mpsc::channel::<AudioLevelSnapshot>();
+    let (responder, mut receiver) = mpsc::channel::<AudioLevelSnapshot>(1);
 
     handle
         .sender
         .send(AudioEngineCommand::GetLevels { responder })
+        .await
         .map_err(|e| format!("Failed to send get-levels command: {}", e))?;
 
     receiver
         .recv()
-        .map_err(|e| format!("Failed to receive levels: {}", e))
+        .await
+        .ok_or_else(|| "Failed to receive levels".to_string())
 }
 
 fn create_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
@@ -1157,6 +1222,10 @@ fn setup_window_events(window: &WebviewWindow) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 创建 Tokio 运行时
+    let runtime = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+    let _guard = runtime.enter();
+    
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_autostart::init(
@@ -1182,6 +1251,7 @@ pub fn run() {
             set_auto_start,
             is_auto_start_enabled,
             close_window,
+            hide_window,
             minimize_window,
             maximize_window,
             start_drag,
@@ -1203,8 +1273,8 @@ pub fn run() {
                 setup_window_events(&window);
 
                 let window = window.clone();
-                std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_millis(500));
+                tokio::spawn(async move {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
                     let _ = window.show();
                 });
             }

@@ -19,7 +19,13 @@ interface BackendLevelSnapshot {
   output_levels: Record<string, number>;
 }
 
-const generateId = () => Math.random().toString(36).substr(2, 9);
+// 使用 crypto.randomUUID 如果可用，否则回退到 Math.random
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2, 11);
+};
 const dbToLinear = (gainDb: number) => Math.pow(10, gainDb / 20);
 const isBackendInputId = (value?: string) => typeof value === 'string' && (/^in-\d+$/.test(value) || /^loop-out-\d+$/.test(value) || /^v-in-\d+$/.test(value));
 const isBackendOutputId = (value?: string) => typeof value === 'string' && (/^out-\d+$/.test(value) || /^v-out-\d+$/.test(value));
@@ -73,6 +79,12 @@ export function useAudioRouter() {
   const [connectingFrom, setConnectingFrom] = useState<{ deviceId: string; channel: number; portType: 'output' } | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const dragOffsetRef = useRef({ x: 0, y: 0 });
+
+  // 同步 dragOffset 到 ref
+  useEffect(() => {
+    dragOffsetRef.current = dragOffset;
+  }, [dragOffset]);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
@@ -414,6 +426,23 @@ export function useAudioRouter() {
     };
   }, [connectionGraphSignature, deviceGraphSignature, syncRealtimeGraph]);
 
+  // 单独的 effect 处理增益、静音和启用状态的变化，避免重新连接所有音频节点
+  useEffect(() => {
+    const context = audioContextRef.current;
+    if (!context) {
+      return;
+    }
+    
+    devices.forEach(device => {
+      const gainNode = deviceGainNodesRef.current.get(device.id);
+      if (gainNode) {
+        const targetGain = device.enabled && !device.muted ? dbToLinear(device.gain) : 0;
+        // 直接设置值，不使用平滑过渡，避免与 syncRealtimeGraph 冲突
+        gainNode.gain.value = targetGain;
+      }
+    });
+  }, [deviceGraphSignature]);
+
   useEffect(() => {
     if (!canUseSystemAudioBridge) {
       return;
@@ -549,42 +578,30 @@ export function useAudioRouter() {
     };
   }, [canUseSystemAudioBridge]);
 
+  // 缓存计算结果以提升性能
+  const getDeviceLevel = useCallback((device: AudioDevice, analyserMap: Map<string, AnalyserNode>, backendLevels: BackendLevelSnapshot): number => {
+    if (!device.enabled || device.muted) return 0;
+    
+    if (canUseSystemAudioBridge && !device.isVirtual && device.boundDeviceId) {
+      const backendLevel = device.type === 'input' 
+        ? backendLevels.input_levels[device.boundDeviceId]
+        : backendLevels.output_levels[device.boundDeviceId];
+      if (typeof backendLevel === 'number') {
+        return toDisplayLevel(backendLevel);
+      }
+    }
+    
+    const analyser = analyserMap.get(device.id);
+    return toDisplayLevel(readRms(analyser));
+  }, [canUseSystemAudioBridge, readRms]);
+
   useEffect(() => {
     meterTimerRef.current = window.setInterval(() => {
       const analyserMap = deviceAnalyserNodesRef.current;
       const backendLevels = backendLevelsRef.current;
 
       setDevices(prevDevices => prevDevices.map(device => {
-        let rms = 0;
-
-        if (device.enabled && !device.muted) {
-          if (canUseSystemAudioBridge && !device.isVirtual) {
-            if (device.type === 'input' && device.boundDeviceId) {
-              const backendLevel = backendLevels.input_levels[device.boundDeviceId];
-              if (typeof backendLevel === 'number') {
-                rms = toDisplayLevel(backendLevel);
-              } else {
-                const analyser = analyserMap.get(device.id);
-                rms = toDisplayLevel(readRms(analyser));
-              }
-            } else if (device.type === 'output' && device.boundDeviceId) {
-              const backendLevel = backendLevels.output_levels[device.boundDeviceId];
-              if (typeof backendLevel === 'number') {
-                rms = toDisplayLevel(backendLevel);
-              } else {
-                const analyser = analyserMap.get(device.id);
-                rms = toDisplayLevel(readRms(analyser));
-              }
-            } else {
-              const analyser = analyserMap.get(device.id);
-              rms = toDisplayLevel(readRms(analyser));
-            }
-          } else {
-            const analyser = analyserMap.get(device.id);
-            rms = toDisplayLevel(readRms(analyser));
-          }
-        }
-
+        const rms = getDeviceLevel(device, analyserMap, backendLevels);
         return {
           ...device,
           levels: Array(device.channels).fill(rms),
@@ -592,36 +609,10 @@ export function useAudioRouter() {
       }));
 
       setConnections(prevConnections => prevConnections.map(connection => {
-        let level = 0;
-        if (connection.enabled) {
-          const sourceDevice = devicesRef.current.find(device => device.id === connection.fromDeviceId);
-
-          if (canUseSystemAudioBridge && sourceDevice && !sourceDevice.isVirtual) {
-            if (sourceDevice.type === 'input' && sourceDevice.boundDeviceId) {
-              const backendLevel = backendLevels.input_levels[sourceDevice.boundDeviceId];
-              if (typeof backendLevel === 'number') {
-                level = toDisplayLevel(backendLevel);
-              } else {
-                const analyser = analyserMap.get(connection.fromDeviceId);
-                level = toDisplayLevel(readRms(analyser));
-              }
-            } else if (sourceDevice.type === 'output' && sourceDevice.boundDeviceId) {
-              const backendLevel = backendLevels.output_levels[sourceDevice.boundDeviceId];
-              if (typeof backendLevel === 'number') {
-                level = toDisplayLevel(backendLevel);
-              } else {
-                const analyser = analyserMap.get(connection.fromDeviceId);
-                level = toDisplayLevel(readRms(analyser));
-              }
-            } else {
-              const analyser = analyserMap.get(connection.fromDeviceId);
-              level = toDisplayLevel(readRms(analyser));
-            }
-          } else {
-            const analyser = analyserMap.get(connection.fromDeviceId);
-            level = toDisplayLevel(readRms(analyser));
-          }
-        }
+        const sourceDevice = devicesRef.current.find(device => device.id === connection.fromDeviceId);
+        const level = sourceDevice && connection.enabled 
+          ? getDeviceLevel(sourceDevice, analyserMap, backendLevels)
+          : 0;
 
         return {
           ...connection,
@@ -697,18 +688,20 @@ export function useAudioRouter() {
   }, []);
 
   const updateDevicePosition = useCallback((deviceId: string, position: { x: number; y: number }) => {
+    // 使用 ref 获取最新的 dragOffset，避免闭包问题
+    const currentOffset = dragOffsetRef.current;
     setDevices(prev => prev.map(device =>
       device.id === deviceId
         ? {
             ...device,
             position: {
-              x: position.x - dragOffset.x,
-              y: position.y - dragOffset.y,
+              x: position.x - currentOffset.x,
+              y: position.y - currentOffset.y,
             },
           }
         : device,
     ));
-  }, [dragOffset.x, dragOffset.y]);
+  }, []);
 
   const toggleMute = useCallback((deviceId: string) => {
     setDevices(prev => prev.map(device => device.id === deviceId ? { ...device, muted: !device.muted } : device));
@@ -866,12 +859,14 @@ export function useAudioRouter() {
       return;
     }
 
-    if (connectingFrom && connectingFrom.deviceId !== toDeviceId) {
-      createConnection(connectingFrom.deviceId, connectingFrom.channel, toDeviceId, toChannel);
-    }
-
-    setConnectingFrom(null);
-  }, [connectingFrom, createConnection]);
+    // 使用函数式更新确保即使多次调用也不会重复创建连接
+    setConnectingFrom(prev => {
+      if (prev && prev.deviceId !== toDeviceId) {
+        createConnection(prev.deviceId, prev.channel, toDeviceId, toChannel);
+      }
+      return null;
+    });
+  }, [createConnection]);
 
   const cancelConnection = useCallback(() => {
     setConnectingFrom(null);

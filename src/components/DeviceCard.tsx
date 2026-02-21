@@ -112,6 +112,18 @@ export function DeviceCard({
     return Math.max(-60, Math.min(6, Math.round(20 * Math.log10(level))));
   };
 
+  // 将线性电平转换为对数刻度的显示宽度，让低电平也能清晰可见
+  const levelToDisplayWidth = (level: number) => {
+    if (level <= 0.0001) {
+      return 0;
+    }
+    // 使用对数刻度：-60dB 对应 0%，0dB 对应 100%
+    // 公式：width = (20 * log10(level) + 60) / 60 * 100
+    const db = 20 * Math.log10(level);
+    const width = ((db + 60) / 60) * 100;
+    return Math.max(0, Math.min(100, width));
+  };
+
   const isLoopbackInput = device.type === 'input' && (device.boundDeviceId?.startsWith('loop-out-') ?? false);
   const displayType = isLoopbackInput ? 'loopback' : device.type;
   const isCoreLinkVirtual = isCoreLinkVirtualId(device.boundDeviceId);
@@ -171,6 +183,8 @@ export function DeviceCard({
             disabled={bindingOptions.length === 0}
             className="device-binding-select"
             onMouseDown={(e) => e.stopPropagation()}
+            searchable
+            minDropdownWidth={200}
           />
         )}
         {Array.from({ length: device.channels }).map((_, i) => (
@@ -195,14 +209,14 @@ export function DeviceCard({
               <div 
                 className="channel-meter-fill"
                 style={{ 
-                  width: `${displayLevels[i] * 100}%`,
+                  width: `${levelToDisplayWidth(displayLevels[i])}%`,
                   opacity: device.muted ? 0.3 : 1,
                 }}
               />
               <div
                 className="channel-meter-peak"
                 style={{
-                  left: `calc(${peakLevels[i] * 100}% - 1px)`,
+                  left: `calc(${levelToDisplayWidth(peakLevels[i])}% - 1px)`,
                   opacity: device.muted ? 0.25 : 0.95,
                 }}
               />

@@ -42,10 +42,12 @@
   cursor: not-allowed;
 }
 
-.custom-select-trigger span {
+.custom-select-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  text-align: left;
 }
 
 .custom-select-arrow {
@@ -63,23 +65,65 @@
 .custom-select-dropdown {
   background: var(--dropdown-bg);
   border-radius: 4px;
-  box-shadow: 0 2px 4px -1px rgba(0,0,0,0.2), 0 4px 5px 0 rgba(0,0,0,0.14), 0 1px 10px 0 rgba(0,0,0,0.12);
-  max-height: 256px;
-  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.1);
+  overflow: hidden;
   animation: dropdownIn 0.12s ease;
-  padding: 8px 0;
-  min-width: 200px;
+  display: flex;
+  flex-direction: column;
 }
 
 @keyframes dropdownIn {
   from {
     opacity: 0;
-    transform: scale(0.95, 0.95);
+    transform: translateY(-8px);
   }
   to {
     opacity: 1;
-    transform: scale(1, 1);
+    transform: translateY(0);
   }
+}
+
+/* 搜索框 */
+.custom-select-search {
+  position: relative;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color-light);
+  flex-shrink: 0;
+}
+
+.custom-select-search input {
+  width: 100%;
+  height: 32px;
+  padding: 0 28px 0 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  outline: none;
+}
+
+.custom-select-search input:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px var(--accent-light);
+}
+
+.custom-select-search .search-icon {
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  fill: var(--text-tertiary);
+  pointer-events: none;
+}
+
+/* 选项列表 */
+.custom-select-options {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .custom-select-option {
@@ -103,4 +147,11 @@
 .custom-select-option.selected {
   color: var(--accent-color);
   background: var(--accent-light);
+}
+
+.custom-select-no-results {
+  padding: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-tertiary);
 }

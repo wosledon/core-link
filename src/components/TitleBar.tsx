@@ -7,9 +7,10 @@ interface TitleBarProps {
   onOpenSettings: () => void;
   projectName: string;
   onProjectNameChange: (projectName: string) => void;
+  minimizeToTray?: boolean;
 }
 
-export function TitleBar({ onOpenSettings, projectName, onProjectNameChange }: TitleBarProps) {
+export function TitleBar({ onOpenSettings, projectName, onProjectNameChange, minimizeToTray = true }: TitleBarProps) {
   const { t } = useTranslation();
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(projectName);
@@ -29,7 +30,11 @@ export function TitleBar({ onOpenSettings, projectName, onProjectNameChange }: T
   };
 
   const handleClose = () => {
-    invoke('close_window');
+    if (minimizeToTray) {
+      invoke('hide_window');
+    } else {
+      invoke('close_window');
+    }
   };
 
   // 处理拖拽 - 只在非按钮区域触发

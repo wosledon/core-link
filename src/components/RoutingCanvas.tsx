@@ -16,6 +16,33 @@ interface ProjectListItem {
   updatedAt: string;
 }
 
+// 连接线方向箭头组件
+interface ConnectionArrowProps {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+}
+
+function ConnectionArrow({ from, to }: ConnectionArrowProps) {
+  // 计算箭头位置（在连线中间）
+  const midX = (from.x + to.x) / 2;
+  const midY = (from.y + to.y) / 2;
+  
+  // 计算角度
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+  
+  return (
+    <g transform={`translate(${midX}, ${midY}) rotate(${angle})`}>
+      <polygon
+        points="0,-4 8,0 0,4"
+        fill="var(--success-color)"
+        opacity={0.9}
+      />
+    </g>
+  );
+}
+
 interface RoutingCanvasProps {
   devices: AudioDevice[];
   connections: AudioConnection[];
@@ -111,7 +138,7 @@ export function RoutingCanvas({
 
   const worldSize = 12000;
   const snapThreshold = 30;
-  const { width: deviceCardWidth, topBarHeight, headerHeight, channelsPaddingTop, bindingHeight, channelHeight, channelTopOffset } = AUDIO_DEVICE_CARD_LAYOUT;
+  const { width: deviceCardWidth, topBarHeight, headerHeight, channelsPaddingTop, bindingHeight, channelHeight } = AUDIO_DEVICE_CARD_LAYOUT;
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const skipNextCanvasClickRef = useRef(false);
@@ -142,18 +169,45 @@ export function RoutingCanvas({
     };
   }, [viewOffset.x, viewOffset.y, zoom]);
 
-  const getPortPosition = useCallback((deviceId: string, channel: number, isInput: boolean): { x: number; y: number } => {
+  // 直接计算端口位置，不使用 useCallback 以确保总是使用最新的 device 位置
+  // 注意：这里的计算需要与 DeviceCard 的实际布局保持一致
+  const getPortPosition = (deviceId: string, channel: number, isInput: boolean): { x: number; y: number } => {
     const device = devices.find(d => d.id === deviceId);
     if (!device) {
       return { x: 0, y: 0 };
     }
 
-    const portOffset = isInput ? 0 : deviceCardWidth;
+    // 根据 DeviceCard.css 计算端口位置：
+    // .device-channels { padding: 8px 12px 12px; }
+    // .channel-port { width: 14px; height: 14px; }
+    // 端口中心偏移量 = 14px / 2 = 7px
+    const channelsPaddingLeft = 12; // .device-channels 左padding
+    const channelsPaddingRight = 12; // .device-channels 右padding
+    const portWidth = 14;
+    const portCenterOffset = portWidth / 2; // 7px
+    
+    // 输入端口在左侧：device.position.x + 左padding + 端口中心
+    // 输出端口在右侧：device.position.x + 卡片宽度 - 右padding - 端口中心
+    const portX = isInput 
+      ? device.position.x + channelsPaddingLeft + portCenterOffset
+      : device.position.x + deviceCardWidth - channelsPaddingRight - portCenterOffset;
+    
+    // 计算 Y 位置：
+    // - topBarHeight (5px) - .device-type-bar
+    // - headerHeight (90px) - .device-header
+    // - channelsPaddingTop (8px) - .device-channels padding-top
+    // - binding 区域高度：
+    //   - 虚拟设备/processor: .device-binding 高度 24px
+    //   - 其他: .device-binding-select 高度 32px + margin-bottom 8px = 40px
+    // - 通道行高度累加
+    const actualBindingHeight = (device.type === 'processor' || device.isVirtual) ? 24 : 40;
+    const channelStartY = topBarHeight + headerHeight + channelsPaddingTop + actualBindingHeight;
+    
     return {
-      x: device.position.x + portOffset,
-      y: device.position.y + topBarHeight + headerHeight + channelsPaddingTop + bindingHeight + channelTopOffset + channel * channelHeight + channelHeight / 2,
+      x: portX,
+      y: device.position.y + channelStartY + channel * channelHeight + channelHeight / 2,
     };
-  }, [bindingHeight, channelHeight, channelTopOffset, channelsPaddingTop, deviceCardWidth, devices, headerHeight, topBarHeight]);
+  };
 
   const isValidConnectionTarget = useCallback((targetDeviceId: string, targetChannel: number, targetPortType: 'input' | 'output') => {
     if (!connectingFrom) {
@@ -257,7 +311,7 @@ export function RoutingCanvas({
     });
 
     return bestTarget;
-  }, [connectingFrom, devices, getPortPosition, isValidConnectionTarget, mousePos.x, mousePos.y]);
+  }, [connectingFrom, devices, isValidConnectionTarget, mousePos.x, mousePos.y]);
 
   const getConnectionPath = useCallback((from: { x: number; y: number }, to: { x: number; y: number }): string => {
     const dx = to.x - from.x;
@@ -422,12 +476,11 @@ export function RoutingCanvas({
       return;
     }
 
-    if (connectingFrom && snappedTarget) {
-      onPortMouseUp(snappedTarget.deviceId, snappedTarget.channel, 'input', {} as React.MouseEvent);
-      return;
+    // 注意：连接完成由 DeviceCard 的 onPortMouseUp 处理，这里不重复调用
+    // 只有在没有吸附目标时才调用 onMouseUp 来取消连接
+    if (!connectingFrom || !snappedTarget) {
+      onMouseUp();
     }
-
-    onMouseUp();
   }, [bindingHeight, boxSelection, channelHeight, channelsPaddingTop, connectingFrom, deviceCardWidth, devices, groupDragging, headerHeight, isPanning, onBatchMoveEnd, onMouseUp, onPortMouseUp, snappedTarget, topBarHeight]);
 
   const handleCanvasClick = useCallback(() => {
@@ -451,6 +504,15 @@ export function RoutingCanvas({
         : selectedDevice
           ? [selectedDevice]
           : [];
+
+      // 删除选中设备（Delete / Backspace）
+      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedIds.length > 0 && !selectedConnectionId) {
+        event.preventDefault();
+        selectedIds.forEach(id => onDeleteDevice(id));
+        setMultiSelectedDeviceIds([]);
+        onSelectDevice(null);
+        return;
+      }
 
       const isGroupShortcut = (event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'g';
       if (isGroupShortcut) {
@@ -495,19 +557,18 @@ export function RoutingCanvas({
         return;
       }
 
-      if (!selectedConnectionId) {
-        return;
-      }
-
-      if (event.key === 'Delete' || event.key === 'Backspace') {
+      // 删除选中的连接线
+      if (selectedConnectionId && (event.key === 'Delete' || event.key === 'Backspace')) {
+        event.preventDefault();
         onDeleteConnection(selectedConnectionId);
         setSelectedConnectionId(null);
+        setConnectionTooltip(null);
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [devices, multiSelectedDeviceIds, onDeleteConnection, onGroupDevices, onSaveProject, onSelectDevice, onUngroupDevices, selectedConnectionId, selectedDevice]);
+  }, [devices, multiSelectedDeviceIds, onDeleteConnection, onDeleteDevice, onGroupDevices, onSaveProject, onSelectDevice, onUngroupDevices, selectedConnectionId, selectedDevice]);
 
   const getPortStatus = useCallback((deviceId: string, channel: number, portType: 'input' | 'output'): 'idle' | 'valid' | 'invalid' => {
     if (!connectingFrom) {
@@ -698,49 +759,61 @@ export function RoutingCanvas({
               {connections.map(connection => {
                 const from = getPortPosition(connection.fromDeviceId, connection.fromChannel, false);
                 const to = getPortPosition(connection.toDeviceId, connection.toChannel, true);
+                const isSelected = selectedConnectionId === connection.id;
+                const isHovered = hoveredConnectionId === connection.id;
+                const isActive = connection.enabled && connection.signalStrength > 0.05;
 
                 return (
-                  <path
-                    key={connection.id}
-                    className={`connection-line ${connection.enabled ? 'active' : ''} ${selectedConnectionId === connection.id ? 'selected' : ''} ${hoveredConnectionId === connection.id ? 'hovered' : ''}`}
-                    d={getConnectionPath(from, to)}
-                    style={{ opacity: connection.signalStrength > 0 ? 0.6 + connection.signalStrength * 0.4 : 0.3 }}
-                    onMouseEnter={(event) => {
-                      setHoveredConnectionId(connection.id);
-                      setConnectionTooltip({
-                        x: event.clientX,
-                        y: event.clientY,
-                        text: getConnectionTooltipText(connection),
-                      });
-                    }}
-                    onMouseMove={(event) => {
-                      setConnectionTooltip(prev => prev ? {
-                        ...prev,
-                        x: event.clientX,
-                        y: event.clientY,
-                      } : {
-                        x: event.clientX,
-                        y: event.clientY,
-                        text: getConnectionTooltipText(connection),
-                      });
-                    }}
-                    onMouseLeave={() => {
-                      setHoveredConnectionId(null);
-                      setConnectionTooltip(null);
-                    }}
-                    onContextMenu={(event) => handleConnectionContextMenu(event, connection.id)}
-                    onMouseDown={(event) => {
-                      event.stopPropagation();
-                      setConnectionContextMenu(null);
-                      setSelectedConnectionId(connection.id);
-                      setConnectionTooltip({
-                        x: event.clientX,
-                        y: event.clientY,
-                        text: getConnectionTooltipText(connection),
-                      });
-                      onSelectDevice(null);
-                    }}
-                  />
+                  <g key={connection.id}>
+                    {/* 可见的连接线 - 事件直接绑定在这里 */}
+                    <path
+                      className={`connection-line ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''} ${isHovered ? 'hovered' : ''}`}
+                      d={getConnectionPath(from, to)}
+                      style={{ 
+                        opacity: connection.signalStrength > 0 ? 0.6 + connection.signalStrength * 0.4 : 0.3,
+                      }}
+                      strokeLinecap="round"
+                      onMouseEnter={(event) => {
+                        setHoveredConnectionId(connection.id);
+                        setConnectionTooltip({
+                          x: event.clientX,
+                          y: event.clientY,
+                          text: getConnectionTooltipText(connection),
+                        });
+                      }}
+                      onMouseMove={(event) => {
+                        setConnectionTooltip(prev => prev ? {
+                          ...prev,
+                          x: event.clientX,
+                          y: event.clientY,
+                        } : {
+                          x: event.clientX,
+                          y: event.clientY,
+                          text: getConnectionTooltipText(connection),
+                        });
+                      }}
+                      onMouseLeave={() => {
+                        setHoveredConnectionId(null);
+                        setConnectionTooltip(null);
+                      }}
+                      onContextMenu={(event) => handleConnectionContextMenu(event, connection.id)}
+                      onMouseDown={(event) => {
+                        event.stopPropagation();
+                        setConnectionContextMenu(null);
+                        setSelectedConnectionId(connection.id);
+                        setConnectionTooltip({
+                          x: event.clientX,
+                          y: event.clientY,
+                          text: getConnectionTooltipText(connection),
+                        });
+                        onSelectDevice(null);
+                      }}
+                    />
+                    {/* 方向箭头（仅在选中或悬停时显示） */}
+                    {(isSelected || isHovered) && (
+                      <ConnectionArrow from={from} to={to} />
+                    )}
+                  </g>
                 );
               })}
 

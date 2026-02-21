@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 背景 -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#86efac"/>
+      <stop offset="100%" style="stop-color:#4ade80"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- 主背景 -->
+  <rect width="512" height="512" rx="96" fill="url(#bgGradient)"/>
+  
+  <!-- 音符 - 视觉居中 -->
+  <path d="M336 140v181.5c0 26.5-21.5 48-48 48s-48-21.5-48-48 21.5-48 48-48c8.8 0 17 2.2 24.2 6.1V185l-128 29.3v130.2c0 26.5-21.5 48-48 48s-48-21.5-48-48 21.5-48 48-48c8.8 0 17 2.2 24.2 6.1V172c0-12.6 9.3-23.3 21.8-25l149.8-34.3c13.5-3.1 26.2 7.1 26.2 21.3z" fill="white"/>
+</svg>

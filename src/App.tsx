@@ -403,23 +403,23 @@ function App() {
     }));
   }, [localInputs, localOutputs, loopbackInputs, selectedInputId, selectedLoopbackId, selectedOutputId, setDevices]);
 
-  const handleUndo = useCallback(() => {
-    if (historyIndex > 0) {
-      const prevState = history[historyIndex - 1];
-      setDevices(prevState.devices);
-      setConnections(prevState.connections);
-      setHistoryIndex(historyIndex - 1);
+  // 历史记录导航的通用函数
+  const navigateHistory = useCallback((direction: 'undo' | 'redo') => {
+    const targetIndex = direction === 'undo' ? historyIndex - 1 : historyIndex + 1;
+    const isValid = direction === 'undo' ? historyIndex > 0 : historyIndex < history.length - 1;
+    
+    if (!isValid) return;
+    
+    const targetState = history[targetIndex];
+    if (targetState) {
+      setDevices(targetState.devices);
+      setConnections(targetState.connections);
+      setHistoryIndex(targetIndex);
     }
   }, [history, historyIndex, setDevices, setConnections]);
 
-  const handleRedo = useCallback(() => {
-    if (historyIndex < history.length - 1) {
-      const nextState = history[historyIndex + 1];
-      setDevices(nextState.devices);
-      setConnections(nextState.connections);
-      setHistoryIndex(historyIndex + 1);
-    }
-  }, [history, historyIndex, setDevices, setConnections]);
+  const handleUndo = useCallback(() => navigateHistory('undo'), [navigateHistory]);
+  const handleRedo = useCallback(() => navigateHistory('redo'), [navigateHistory]);
 
   const handleNewProject = useCallback(() => {
     saveHistory();
@@ -685,21 +685,13 @@ function App() {
     })));
   }, [devices, saveHistory, setDevices]);
 
-  const handleZoomIn = useCallback(() => {
-    setZoom(prev => Math.min(prev * 1.15, 2.6));
-  }, []);
-
-  const handleZoomOut = useCallback(() => {
-    setZoom(prev => Math.max(prev / 1.15, 0.35));
-  }, []);
-
-  const handleToggleLock = useCallback(() => {
-    setIsLocked(prev => !prev);
-  }, []);
-
-  const handleFitToView = useCallback((targetZoom: number) => {
-    setZoom(targetZoom);
-  }, []);
+  // 缩放控制
+  const handleZoomIn = useCallback(() => setZoom(prev => Math.min(prev * 1.15, 2.6)), []);
+  const handleZoomOut = useCallback(() => setZoom(prev => Math.max(prev / 1.15, 0.35)), []);
+  const handleFitToView = useCallback((targetZoom: number) => setZoom(targetZoom), []);
+  
+  // 锁定切换
+  const handleToggleLock = useCallback(() => setIsLocked(prev => !prev), []);
 
   const handleCanvasMouseMove = useCallback((pos: { x: number; y: number }) => {
     setMousePos(pos);
@@ -728,6 +720,12 @@ function App() {
     completeConnection(deviceId, channel, portType);
     saveHistory();
   }, [completeConnection, connectingFrom, saveHistory]);
+
+  // 阻止连接完成时的事件冒泡，避免触发 cancelConnection
+  const handlePortMouseUpWithStopPropagation = useCallback((deviceId: string, channel: number, portType: 'input' | 'output', event: React.MouseEvent) => {
+    event.stopPropagation();
+    handlePortMouseUp(deviceId, channel, portType);
+  }, [handlePortMouseUp]);
 
   const handleThemeChange = useCallback((nextTheme: 'light' | 'dark' | 'system') => {
     setTheme(nextTheme);
@@ -1011,10 +1009,18 @@ function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         projectName={currentProjectName}
         onProjectNameChange={handleProjectNameChange}
+        minimizeToTray={settings.minimizeToTray}
       />
 
       <main className="app-main">
         <section className="canvas-area">
+          {/* 系统引擎状态卡片 */}
+          <div className={`engine-status-card ${systemRouteStatus.running ? 'running' : ''}`}>
+            <div className="engine-status-indicator" />
+            <span className="engine-status-text">
+              {systemRouteStatus.running ? `系统引擎运行中 · ${systemRouteStatus.route_count || 0} 路` : '系统引擎未运行'}
+            </span>
+          </div>
           <RoutingCanvas
             devices={devices}
             connections={connections}
@@ -1031,7 +1037,7 @@ function App() {
             onMouseUp={handleCanvasMouseUp}
             onDeviceMouseDown={startDragDevice}
             onPortMouseDown={startConnection}
-            onPortMouseUp={handlePortMouseUp}
+            onPortMouseUp={handlePortMouseUpWithStopPropagation}
             onToggleMute={handleToggleMute}
             onDeleteDevice={handleDeleteDevice}
             onDeleteConnection={handleDeleteConnection}
@@ -1065,9 +1071,6 @@ function App() {
         <aside className="sidebar sidebar-right">
           <div className="panel-header">
             <h3>设备属性</h3>
-            <span className={`engine-status-chip ${systemRouteStatus.running ? 'running' : ''}`}>
-              系统引擎 {systemRouteStatus.running ? `运行中 · ${systemRouteStatus.route_count || 0} 路` : '未运行'}
-            </span>
           </div>
           <div className="panel-content">
             {selectedDeviceData ? (
@@ -1132,138 +1135,172 @@ function DeviceProperties({ device, localInputs, loopbackInputs, localOutputs, o
   const availableChannelOptions = [1, 2, 4, 6, 8, 12, 16];
   const isCoreLinkVirtual = isCoreLinkVirtualId(device.boundDeviceId);
 
+  // 计算增益滑块填充高度百分比 (-60 ~ +24)
+  const gainPercent = ((device.gain + 60) / 84) * 100;
+
   return (
     <div className="device-properties">
-      <div className="prop-card">
-        <div className="prop-card-title">基础信息</div>
-        <div className="prop-group">
-          <label>名称</label>
-          <div className="name-input-row">
-            <input
-              type="text"
-              value={device.name}
-              onChange={(event) => onUpdate({ name: event.target.value })}
-            />
-            <span className={`name-mode-chip ${device.nameCustomized ? 'custom' : 'auto'}`}>
-              {device.nameCustomized ? '自定义命名' : '自动命名'}
-            </span>
-          </div>
-          <button className="name-reset-btn" type="button" onClick={onResetName}>
-            重置名称
-          </button>
-        </div>
-        <div className="prop-group">
-          <label>类型</label>
-          <input type="text" value={device.type} readOnly />
-        </div>
-      </div>
-
-      <div className="prop-card">
-        <div className="prop-card-title">设备来源</div>
-        <div className="prop-group">
-          <label>绑定设备</label>
-          {device.type === 'processor' || device.isVirtual || isCoreLinkVirtual ? (
-            <input type="text" value={device.boundDeviceLabel || '虚拟效果器链路'} readOnly />
-          ) : (
-            <CustomSelect
-              value={device.boundDeviceId || ''}
-              options={localOptions.map(option => ({ value: option.id, label: option.label }))}
-              onChange={(value) => {
-                const selected = localOptions.find(option => option.id === value);
-                onUpdate({
-                  boundDeviceId: selected?.id,
-                  boundDeviceLabel: selected?.label,
-                  isVirtual: false,
-                });
-              }}
-            />
-          )}
-        </div>
-        {(isCoreLinkVirtual || device.isVirtual) && (
+      <div className="prop-main-content">
+        <div className="prop-card">
+          <div className="prop-card-title">基础信息</div>
           <div className="prop-group">
-            <label>虚拟设备 ID</label>
-            <input type="text" value={device.boundDeviceId || ''} readOnly />
-          </div>
-        )}
-        {isCoreLinkVirtual && (
-          <div className="prop-group">
-            <label>虚拟后缀</label>
-            <div className="virtual-suffix-row">
+            <div className="name-label-row">
+              <label>名称</label>
+              <span className={`name-mode-chip ${device.nameCustomized ? 'custom' : 'auto'}`}>
+                {device.nameCustomized ? '自定义' : '自动'}
+              </span>
+            </div>
+            <div className="name-input-row">
               <input
                 type="text"
-                value={extractCoreVirtualSuffix(device.boundDeviceId)}
-                onChange={(event) => onUpdateVirtualSuffix(event.target.value)}
+                value={device.name}
+                onChange={(event) => onUpdate({ name: event.target.value })}
               />
-              <button className="name-reset-btn" type="button" onClick={onFollowNameForVirtualSuffix}>
-                跟随名称
+            </div>
+            <button className="name-reset-btn" type="button" onClick={onResetName}>
+              重置名称
+            </button>
+          </div>
+          <div className="prop-group">
+            <label>类型</label>
+            <input type="text" value={device.type} readOnly />
+          </div>
+        </div>
+
+        <div className="prop-card">
+          <div className="prop-card-title">设备来源</div>
+          <div className="prop-group">
+            <label>绑定设备</label>
+            {device.type === 'processor' || device.isVirtual || isCoreLinkVirtual ? (
+              <input type="text" value={device.boundDeviceLabel || '虚拟效果器链路'} readOnly />
+            ) : (
+              <CustomSelect
+                value={device.boundDeviceId || ''}
+                options={localOptions.map(option => ({ value: option.id, label: option.label }))}
+                onChange={(value) => {
+                  const selected = localOptions.find(option => option.id === value);
+                  onUpdate({
+                    boundDeviceId: selected?.id,
+                    boundDeviceLabel: selected?.label,
+                    isVirtual: false,
+                  });
+                }}
+                searchable
+                minDropdownWidth={200}
+              />
+            )}
+          </div>
+          {(isCoreLinkVirtual || device.isVirtual) && (
+            <div className="prop-group">
+              <label>虚拟设备 ID</label>
+              <input type="text" value={device.boundDeviceId || ''} readOnly />
+            </div>
+          )}
+          {isCoreLinkVirtual && (
+            <div className="prop-group">
+              <label>虚拟后缀</label>
+              <div className="virtual-suffix-row">
+                <input
+                  type="text"
+                  value={extractCoreVirtualSuffix(device.boundDeviceId)}
+                  onChange={(event) => onUpdateVirtualSuffix(event.target.value)}
+                />
+                <button className="name-reset-btn" type="button" onClick={onFollowNameForVirtualSuffix}>
+                  跟随名称
+                </button>
+              </div>
+              <span className="virtual-suffix-hint">
+                {device.virtualSuffixCustomized ? '已锁定自定义后缀' : '当前后缀自动跟随名称'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="prop-card">
+          <div className="prop-card-title">音频状态</div>
+          <div className="audio-status-grid">
+            <div className="status-item">
+              <span className="status-label">设备状态</span>
+              <button
+                className={`status-toggle ${device.enabled ? 'active' : ''}`}
+                onClick={() => onUpdate({ enabled: !device.enabled })}
+                type="button"
+              >
+                <span className="toggle-indicator" />
+                <span className="toggle-label">{device.enabled ? '已启用' : '已禁用'}</span>
               </button>
             </div>
-            <span className="virtual-suffix-hint">
-              {device.virtualSuffixCustomized ? '已锁定自定义后缀' : '当前后缀自动跟随名称'}
-            </span>
+            <div className="status-item">
+              <span className="status-label">静音</span>
+              <button
+                className={`status-toggle ${device.muted ? 'muted' : ''}`}
+                onClick={() => onUpdate({ muted: !device.muted })}
+                type="button"
+              >
+                <span className="toggle-indicator" />
+                <span className="toggle-label">{device.muted ? '已静音' : '正常'}</span>
+              </button>
+            </div>
           </div>
-        )}
+          <div className="prop-group">
+            <label>通道数</label>
+            <CustomSelect
+              value={String(device.channels)}
+              options={availableChannelOptions.map(ch => ({ value: String(ch), label: `${ch} 通道` }))}
+              onChange={(value) => onUpdate({ channels: Number(value) })}
+              searchable
+              minDropdownWidth={200}
+            />
+          </div>
+        </div>
       </div>
 
-      <div className="prop-card">
-        <div className="prop-card-title">音频状态</div>
-        <div className="audio-status-grid">
-          <div className="status-item">
-            <span className="status-label">设备状态</span>
-            <button
-              className={`status-toggle ${device.enabled ? 'active' : ''}`}
-              onClick={() => onUpdate({ enabled: !device.enabled })}
-              type="button"
-            >
-              <span className="toggle-indicator" />
-              <span className="toggle-label">{device.enabled ? '已启用' : '已禁用'}</span>
-            </button>
-          </div>
-          <div className="status-item">
-            <span className="status-label">静音</span>
-            <button
-              className={`status-toggle ${device.muted ? 'muted' : ''}`}
-              onClick={() => onUpdate({ muted: !device.muted })}
-              type="button"
-            >
-              <span className="toggle-indicator" />
-              <span className="toggle-label">{device.muted ? '已静音' : '正常'}</span>
-            </button>
-          </div>
-        </div>
-        <div className="prop-group">
-          <label>通道数</label>
-          <CustomSelect
-            value={String(device.channels)}
-            options={availableChannelOptions.map(ch => ({ value: String(ch), label: `${ch} 通道` }))}
-            onChange={(value) => onUpdate({ channels: Number(value) })}
-          />
-        </div>
-        <div className="prop-group gain-control">
-          <div className="gain-header">
-            <label>增益 (dB)</label>
-            <span className="gain-value">{device.gain > 0 ? '+' : ''}{device.gain} dB</span>
-          </div>
-          <input
-            type="range"
-            min="-60"
-            max="24"
-            step="0.5"
-            value={device.gain}
-            onChange={(event) => onUpdate({ gain: Number(event.target.value) })}
-            className="gain-slider"
-          />
-          <div className="gain-scale">
-            <span>-60</span>
-            <span>0</span>
+      {/* 纵向增益控制区域 */}
+      <div className="prop-gain-section">
+        <button
+          className="gain-reset-btn-top"
+          onClick={() => onUpdate({ gain: 0 })}
+          type="button"
+          title="重置增益"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14">
+            <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+          </svg>
+        </button>
+        <div className="gain-fader-container">
+          <div className="gain-fader-scale">
             <span>+24</span>
+            <span>+12</span>
+            <span>0</span>
+            <span>-12</span>
+            <span>-24</span>
+            <span>-36</span>
+            <span>-48</span>
+            <span>-60</span>
+          </div>
+          <div className="gain-fader-track" style={{ '--gain-percent': gainPercent } as React.CSSProperties}>
+            <div 
+              className="gain-fader-fill"
+              style={{ height: `${gainPercent}%` }}
+            />
+            <div 
+              className="gain-fader-thumb"
+              style={{ bottom: `calc(${gainPercent}% - 10px)` }}
+            />
+            <input
+              type="range"
+              min="-60"
+              max="24"
+              step="0.5"
+              value={device.gain}
+              onChange={(event) => onUpdate({ gain: Number(event.target.value) })}
+              className="gain-fader"
+            />
           </div>
         </div>
-        <div className="prop-group">
-          <label>状态</label>
-          <span className={device.muted ? 'status-muted' : 'status-active'}>
-            {device.muted ? '已静音' : '正常'}
-          </span>
+        <div className="gain-fader-value">
+          <span className="gain-fader-label">GAIN</span>
+          <span className="gain-fader-db">{device.gain > 0 ? '+' : ''}{Number(device.gain).toFixed(1)} dB</span>
         </div>
       </div>
     </div>
